@@ -56,6 +56,8 @@ The project uses the following technologies:
 
 The main workflow follows this general process:
 
+![NexaCart Workflow](./nexacart-workflow.png)
+
 ```text
 Customer
    ↓
@@ -68,9 +70,8 @@ Normalize Customer Request
 AI Intent Classifier
    ↓
 Support Intent Router
-   ↓
-┌─────────────────────────────────────────────┐
-│                                             │
+   
+                                             
 ├── Order Status → Shopify Order Lookup       │
 │                                             │
 ├── Product Info → Shopify Product Lookup     │
@@ -83,9 +84,9 @@ Support Intent Router
 │                                             │
 └── General Question → AI Support Response    │
                                               │
-                     ↓
-             Response Validation
-                     ↓
-          Approved Automated Response
-                     ↓
-             Customer Response
+                         ↓
+                 Response Validation
+                         ↓
+              Approved Automated Response
+                         ↓
+                 Customer Response
