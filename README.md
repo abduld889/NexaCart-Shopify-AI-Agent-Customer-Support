@@ -1,16 +1,91 @@
-# React + Vite
+# NexaCart AI Support
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+An AI-powered Shopify customer support assistant built with React, n8n, Shopify, Ollama, and Slack.
 
-Currently, two official plugins are available:
+NexaCart AI Support automates common customer support requests such as order status, product information, shipping questions, returns and refunds, while routing requests that require human assistance to a support channel.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Overview
 
-## React Compiler
+NexaCart combines a React-based customer chat interface with an n8n automation backend.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The customer sends a message through the web interface. The request is processed by the n8n workflow, classified by an AI intent classifier, routed to the appropriate support path, and answered using Shopify data, store policies, or AI-generated responses.
 
-## Expanding the Oxlint configuration
+For requests requiring human intervention, the workflow can escalate the conversation to the support team through Slack.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Features
+
+- AI-powered customer support chat
+- Shopify order status lookup
+- Shopify product information lookup
+- Shipping information and policy support
+- Return and refund eligibility checking
+- Human support escalation
+- Slack support notifications
+- AI intent classification
+- Automated response validation
+- Conversation logging
+- React-based customer-facing interface
+- Local AI processing with Ollama
+
+## Supported Customer Requests
+
+The AI intent classifier routes customer requests into six main categories:
+
+1. `order_status`
+2. `product_information`
+3. `shipping`
+4. `return_refund`
+5. `human_support`
+6. `general_question`
+
+Each category is routed to the appropriate workflow path.
+
+## Architecture
+
+The project uses the following technologies:
+
+- **React + Vite** — Customer-facing web interface
+- **n8n** — Workflow automation and backend orchestration
+- **Shopify GraphQL API** — Order and product information
+- **Ollama** — Local AI model processing
+- **Qwen3:8B** — AI model used for intent classification and support responses
+- **Slack** — Human support notifications
+- **Git/GitHub** — Version control and project hosting
+
+## Workflow
+
+The main workflow follows this general process:
+
+```text
+Customer
+   ↓
+React Chat Interface
+   ↓
+n8n Webhook
+   ↓
+Normalize Customer Request
+   ↓
+AI Intent Classifier
+   ↓
+Support Intent Router
+   ↓
+┌─────────────────────────────────────────────┐
+│                                             │
+├── Order Status → Shopify Order Lookup       │
+│                                             │
+├── Product Info → Shopify Product Lookup     │
+│                                             │
+├── Shipping → Shipping / Order Support       │
+│                                             │
+├── Refund → Refund Eligibility Check         │
+│                                             │
+├── Human Support → Support Escalation        │
+│                                             │
+└── General Question → AI Support Response    │
+                                              │
+                     ↓
+             Response Validation
+                     ↓
+          Approved Automated Response
+                     ↓
+             Customer Response
