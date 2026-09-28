@@ -1,0 +1,465 @@
+{
+  "name": "Shopify AI Customer Support Agent - Foundation v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shopify-ai-support",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Customer Support Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst message = body.message ?? body.question ?? body.text ?? '';\nconst customerId = body.customer_id ?? body.customerId ?? null;\nconst email = body.email ?? null;\nconst conversationId = body.conversation_id ?? body.conversationId ?? `conv_${Date.now()}`;\nif (!message || typeof message !== 'string') {\n  throw new Error('A customer message is required.');\n}\nreturn [{json: {\n  conversationId,\n  customerId,\n  email,\n  message: message.trim(),\n  receivedAt: new Date().toISOString()\n}}];"
+      },
+      "id": "2",
+      "name": "Normalize Customer Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.message }}",
+              "rightValue": "^(where|track|status|order|delivered|delivery)",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3",
+      "name": "Order Intent Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\n  ...$json,\n  intent: 'order_support',\n  route: 'shopify_order'\n}}];"
+      },
+      "id": "4",
+      "name": "Route Order Support",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\n  ...$json,\n  intent: 'general_support',\n  route: 'ai_agent'\n}}];"
+      },
+      "id": "5",
+      "name": "Route General Support",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://{{SHOPIFY_STORE_DOMAIN}}/admin/api/2026-07/graphql.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Shopify-Access-Token",
+              "value": "{{SHOPIFY_ADMIN_API_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({query: 'query { shop { name } }'}) }}",
+        "options": {}
+      },
+      "id": "6",
+      "name": "Shopify Connection Test",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -280,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\n  ...$('Route Order Support').first().json,\n  shopifyConnectionTest: $json\n}}];"
+      },
+      "id": "7",
+      "name": "Prepare Order Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'qwen3:8b',\n  stream: false,\n  prompt: `You are a Shopify customer-support assistant.\\nCustomer message: ${$('Prepare Order Context').first().json.message}\\nReturn a concise, helpful response. Do not invent order details. If information is unavailable, say so and request the minimum information needed.`\n}) }}",
+        "options": {}
+      },
+      "id": "8",
+      "name": "Ollama Order Support Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'qwen3:8b',\n  stream: false,\n  prompt: `You are the primary AI customer-support assistant for a Shopify store.\\nCustomer message: ${$('Route General Support').first().json.message}\\nClassify the request internally and answer professionally. Never invent product, order, shipping, refund, or policy facts. If the request requires store-specific data you do not have, clearly state that and ask for the needed information.`\n}) }}",
+        "options": {}
+      },
+      "id": "9",
+      "name": "Ollama General Support Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -280,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $json.response ?? $json.data ?? JSON.stringify($json);\nreturn [{json:{\n  conversationId: $('Normalize Customer Request').first().json.conversationId,\n  customerId: $('Normalize Customer Request').first().json.customerId,\n  email: $('Normalize Customer Request').first().json.email,\n  message: $('Normalize Customer Request').first().json.message,\n  draftResponse: source,\n  generatedAt: new Date().toISOString()\n}}];"
+      },
+      "id": "10",
+      "name": "Normalize AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.draftResponse }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "11",
+      "name": "Response Validation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\n  ...$json,\n  status: 'ready',\n  escalationRequired: false\n}}];"
+      },
+      "id": "12",
+      "name": "Approve Automated Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\n  ...$json,\n  status: 'needs_human_review',\n  escalationRequired: true,\n  draftResponse: 'I\u2019m sorry, but I need a human support specialist to review this request before giving you a definitive answer.'\n}}];"
+      },
+      "id": "13",
+      "name": "Human Escalation Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\n  conversationId: $json.conversationId,\n  status: $json.status,\n  escalationRequired: $json.escalationRequired,\n  response: $json.draftResponse,\n  loggedAt: new Date().toISOString()\n}}];"
+      },
+      "id": "14",
+      "name": "Conversation Log Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "15",
+      "name": "Return Customer Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1380,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Customer Support Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Customer Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Customer Request": {
+      "main": [
+        [
+          {
+            "node": "Order Intent Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Intent Check": {
+      "main": [
+        [
+          {
+            "node": "Route Order Support",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route General Support",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Order Support": {
+      "main": [
+        [
+          {
+            "node": "Shopify Connection Test",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify Connection Test": {
+      "main": [
+        [
+          {
+            "node": "Prepare Order Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Order Context": {
+      "main": [
+        [
+          {
+            "node": "Ollama Order Support Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Order Support Draft": {
+      "main": [
+        [
+          {
+            "node": "Normalize AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route General Support": {
+      "main": [
+        [
+          {
+            "node": "Ollama General Support Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama General Support Draft": {
+      "main": [
+        [
+          {
+            "node": "Normalize AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize AI Response": {
+      "main": [
+        [
+          {
+            "node": "Response Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response Validation": {
+      "main": [
+        [
+          {
+            "node": "Approve Automated Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Human Escalation Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve Automated Response": {
+      "main": [
+        [
+          {
+            "node": "Conversation Log Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Escalation Fallback": {
+      "main": [
+        [
+          {
+            "node": "Conversation Log Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Log Record": {
+      "main": [
+        [
+          {
+            "node": "Return Customer Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
